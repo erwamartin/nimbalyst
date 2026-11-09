@@ -82,7 +82,7 @@ function setting<S extends z.ZodTypeAny>(
  *   - ai.provider.<id>  -- per-provider config (enabled, models, baseUrl, ...)
  *   - ai.apiKey.<name>  -- per-provider API key (string, may be empty)
  *   - ai.defaultProvider, ai.showToolCalls, ai.chatShowToolCalls, ai.aiDebugLogging,
- *     ai.showPromptAdditions, ai.customClaudeCodePath, ai.autoCommitEnabled,
+ *     ai.showPromptAdditions, ai.customClaudeCodePath, ai.autoCommitEnabled, ai.autoCommitWorktreesEnabled,
  *     ai.showMcpSessionStatus, ai.trackerAutomation, ai.diffPeekSize
  */
 export const SETTINGS_REGISTRY = {
@@ -218,6 +218,12 @@ export const SETTINGS_REGISTRY = {
   'ai.autoCommitEnabled': setting(
     z.boolean(),
     { store: 'ai-settings', path: 'autoCommitEnabled' },
+    false,
+  ),
+  // #1756: sibling-worktree commits stay manual unless this is on too.
+  'ai.autoCommitWorktreesEnabled': setting(
+    z.boolean(),
+    { store: 'ai-settings', path: 'autoCommitWorktreesEnabled' },
     false,
   ),
   'ai.usageLimitAutoResumeEnabled': setting(

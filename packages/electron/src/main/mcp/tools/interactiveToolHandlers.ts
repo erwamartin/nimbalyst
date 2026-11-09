@@ -34,7 +34,7 @@ import { broadcastMessageLogged } from "../../services/ai/claudeCliUserPromptLog
 import { ClaudeSettingsManager } from "../../services/ClaudeSettingsManager";
 import { getPermissionService } from "../../services/PermissionService";
 import { SessionCommitService } from "../../services/SessionCommitService";
-import { resolveGitCommitProposalTarget } from "../../services/gitCommitProposalTarget";
+import { resolveGitCommitProposalTarget, revalidateProposalWorktree } from "../../services/gitCommitProposalTarget";
 import { isGitLockFailure, noCommitNote, readProposalOutcome } from "../../services/commitOutcomeCheck";
 import { COMMIT_TARGET_VERSION } from "../../services/ai/proposalCommitTarget";
 import { cancelCommitProposalOnce, commitProposalIdentity, runCommitProposalOnce } from "../../services/ai/CommitProposalExecution";
@@ -144,7 +144,7 @@ export function getInteractiveToolSchemas(sessionId: string | undefined) {
 
 IMPORTANT: First call get_session_edited_files, cross-reference with git status, and include ALL session-edited files that have uncommitted changes — do not cherry-pick a subset.
 
-Relative paths target the session's checkout (its worktree when linked). Absolute paths may also target attached repositories. Files outside these roots are rejected. If the work lives in another worktree of the session's repository (listed by \`git worktree list\`), pass that worktree's absolute path as workingDirectory; all files must be in it, and the user always approves that commit by hand.
+Relative paths target the session's checkout (its worktree when linked). Absolute paths may also target attached repositories. Files outside these roots are rejected. If the work lives in another worktree of the session's repository (listed by \`git worktree list\`), pass that worktree's absolute path as workingDirectory; all files must be in it, and the user approves that commit by hand unless they turned on auto-approve for other worktrees.
 
 ONE REPOSITORY PER CALL. A commit cannot span repositories. If the files you are committing live in more than one repository (a workspace can have attached folders that are their own checkouts), call this tool once per repository — each call with only that repository's files and a commit message describing that repository's change. A call whose files span repositories is rejected.
 
@@ -591,14 +591,16 @@ async function runGitCommitProposal(
 
   // Decide before publishing: voice must never request approval for an automatic commit.
   let isAutoCommit = false;
+  let autoCommitWorktrees = false;
   try {
     const aiSettingsStore = new Store({ name: "ai-settings" });
     isAutoCommit = aiSettingsStore.get("autoCommitEnabled", false) as boolean;
+    autoCommitWorktrees = aiSettingsStore.get("autoCommitWorktreesEnabled", false) as boolean;
   } catch {
     // If we can't read settings, fall through to manual mode
   }
-  // #1756: a commit into a sibling worktree is always approved by hand.
-  if (target.worktree) isAutoCommit = false;
+  // #1756: a commit into a sibling worktree is approved by hand unless the user opted in.
+  if (target.worktree && !autoCommitWorktrees) isAutoCommit = false;
 
   // Persist the proposal to database for durability
   try {
@@ -752,12 +754,22 @@ async function runGitCommitProposal(
       targetSessionId,
       proposalId,
       commitProposalIdentity(target.workspacePath, commitMessage, filePaths, undefined, target.repoPath),
-      () => executeGitCommitAcrossRepos(
-        target.workspacePath,
-        commitMessage,
-        filePaths,
-        { logContext: "[git:auto-commit]", env: getGitSubprocessEnv(), repoPath: target.repoPath, signal: abortCommit.signal }
-      ),
+      async () => {
+        // #1756: same re-check the manual path runs, right before the commit.
+        if (target.worktree) {
+          try {
+            await revalidateProposalWorktree(targetSessionId, target.worktree.path);
+          } catch (error) {
+            return { success: false, error: error instanceof Error ? error.message : String(error) };
+          }
+        }
+        return executeGitCommitAcrossRepos(
+          target.workspacePath,
+          commitMessage,
+          filePaths,
+          { logContext: "[git:auto-commit]", env: getGitSubprocessEnv(), repoPath: target.repoPath, signal: abortCommit.signal }
+        );
+      },
     );
 
     let outcomeNote = "";
