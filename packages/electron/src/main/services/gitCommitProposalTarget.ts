@@ -17,7 +17,7 @@ export interface GitCommitProposalTarget {
   workspacePath: string;
   repoPath: string;
   files: string[];
-  /** Set only for an explicit sibling worktree; such a commit always needs manual approval. */
+  /** Set only for an explicit sibling worktree; such a commit needs manual approval unless `autoCommitWorktreesEnabled` is on. */
   worktree?: CommitProposalWorktree;
 }
 

@@ -43,6 +43,9 @@ export function AgentFeaturesPanel() {
 
   const autoCommitEnabled = useAtomValue(autoCommitEnabledAtom);
   const setAutoCommitEnabled = useSetAtom(setAutoCommitEnabledAtom);
+  const [autoCommitWorktreesEnabled, setAutoCommitWorktreesEnabled] = useAtom(
+    settingAtom('ai.autoCommitWorktreesEnabled'),
+  ) as [boolean, (value: boolean) => void];
   const usageLimitAutoResumeEnabled = useAtomValue(settingAtom('ai.usageLimitAutoResumeEnabled'));
 
   const [showMcpSessionStatus, setShowMcpSessionStatus] = useAtom(
@@ -258,6 +261,15 @@ export function AgentFeaturesPanel() {
           }}
           name="Auto-approve Commits"
           description="Automatically approve when Claude proposes git commits."
+        />
+
+        <SettingsToggle
+          checked={autoCommitWorktreesEnabled}
+          onChange={setAutoCommitWorktreesEnabled}
+          disabled={!autoCommitEnabled}
+          name="Also auto-approve commits into other worktrees"
+          description="Commits an agent proposes into another worktree of the same repository skip the review too. Off by default."
+          testId="auto-commit-worktrees-toggle"
         />
 
         <SettingsToggle

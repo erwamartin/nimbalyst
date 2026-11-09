@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 <!-- New features go here -->
+- A new Agent Features setting lets auto-approved commits also cover commits an agent proposes into another worktree of the same repository, instead of always asking.
 
 ### Changed
 <!-- Changes to existing functionality go here -->
