@@ -1,6 +1,7 @@
 import { isRetainedSession } from '@nimbalyst/collab-protocol';
 import type { SessionIndexData, SyncProvider } from '@nimbalyst/runtime/sync/types';
 import { decideMissingSession } from './missingSessionPolicy';
+import { localSessionHost } from './claimLocalSessionHosts';
 
 type ServerIndex = Awaited<ReturnType<NonNullable<SyncProvider['fetchIndex']>>>;
 
@@ -94,7 +95,9 @@ export function selectSessionsForIndexSync<T extends SessionIndexData>(
         (Boolean(localSession.isPinned) !== Boolean(serverSession.isPinned)) ||
         ((localSession.parentSessionId ?? null) !== (serverSession.parentSessionId ?? null)) ||
         ((localSession.createdBySessionId ?? null) !== (serverSession.createdBySessionId ?? null)) ||
-        (localSession.title !== serverSession.title)
+        (localSession.title !== serverSession.title) ||
+        // Host attribution claimed after the row was first published.
+        (!!localSessionHost(localSession) && !serverSession.hostDeviceId)
       ) {
         sessionsNeedingIndexUpdate.push(localSession);
       }
