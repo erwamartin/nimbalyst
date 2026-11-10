@@ -19,6 +19,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { logger } from '../utils/logger';
 import { AnalyticsService } from './analytics/AnalyticsService';
+import type { PersonalMemberId } from '@nimbalyst/runtime/auth/jwtScopes';
 
 /**
  * Encryption credentials for E2E encrypted sync.
@@ -195,14 +196,14 @@ function isValidSeed(seed: unknown): seed is string {
  * Pairing code that lets another desktop of the same account adopt this
  * desktop's sync key. Desktops cannot scan the mobile QR code.
  */
-export function createComputerPairingCode(personalUserId: string): string {
+export function createComputerPairingCode(personalUserId: PersonalMemberId): string {
   if (!personalUserId) throw new Error('Sign in to sync before pairing another computer.');
   const body = JSON.stringify({ u: personalUserId, s: getCredentials().encryptionKeySeed });
   return COMPUTER_PAIRING_PREFIX + Buffer.from(body, 'utf8').toString('base64url');
 }
 
 /** Returns the sync key carried by a pairing code, refusing codes from another account. */
-export function readComputerPairingCode(code: string, personalUserId: string): string {
+export function readComputerPairingCode(code: string, personalUserId: PersonalMemberId): string {
   const trimmed = typeof code === 'string' ? code.trim() : '';
   if (!trimmed.startsWith(COMPUTER_PAIRING_PREFIX)) throw new Error('This is not a Nimbalyst computer pairing code.');
   let parsed: { u?: unknown; s?: unknown };
