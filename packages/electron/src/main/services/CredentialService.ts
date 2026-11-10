@@ -210,11 +210,13 @@ export function createComputerPairingCode(personalUserId: PersonalMemberId): str
 
 /** Returns the sync key carried by a pairing code, refusing codes from another account. */
 export function readComputerPairingCode(code: string, personalUserId: PersonalMemberId): string {
-  const trimmed = typeof code === 'string' ? code.trim() : '';
-  if (!trimmed.startsWith(COMPUTER_PAIRING_PREFIX)) throw new Error('This is not a Nimbalyst computer pairing code.');
+  // Paste can drop the start of the code or wrap it; the encoded body validates itself.
+  const compact = typeof code === 'string' ? code.replace(/\s+/g, '') : '';
+  const marker = compact.lastIndexOf('pair:1:');
+  if (marker < 0) throw new Error('This is not a Nimbalyst computer pairing code.');
   let parsed: { u?: unknown; s?: unknown };
   try {
-    parsed = JSON.parse(Buffer.from(trimmed.slice(COMPUTER_PAIRING_PREFIX.length), 'base64url').toString('utf8'));
+    parsed = JSON.parse(Buffer.from(compact.slice(marker + 'pair:1:'.length), 'base64url').toString('utf8'));
   } catch {
     throw new Error('This pairing code is incomplete. Copy it again.');
   }
