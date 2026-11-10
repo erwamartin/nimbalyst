@@ -55,7 +55,7 @@ import { getDialogDefaultPath, rememberDialogSelection } from '../utils/dialogPa
 import { SoundNotificationService } from '../services/SoundNotificationService';
 import { autoUpdaterService } from '../services/autoUpdater';
 import type { OnboardingState } from '../utils/store';
-import { getCredentials, resetCredentials, generateQRPairingPayload, isUsingSecureStorage, createComputerPairingCode, readComputerPairingCode, adoptEncryptionKeySeed } from '../services/CredentialService';
+import { getCredentials, resetCredentials, generateQRPairingPayload, isUsingSecureStorage, createComputerPairingCode, readComputerPairingCode, adoptEncryptionKeySeed, getSyncKeyFingerprint } from '../services/CredentialService';
 import {
     isSyncProviderReady,
     onSyncStatusChange,
@@ -1316,6 +1316,8 @@ export function registerSettingsHandlers() {
             isSecure: isUsingSecureStorage(),
         };
     });
+
+    safeHandle('credentials:key-fingerprint', () => getSyncKeyFingerprint());
 
     // Pairing code another desktop pastes to adopt this desktop's sync key
     safeHandle('credentials:computer-pairing-code', () => {

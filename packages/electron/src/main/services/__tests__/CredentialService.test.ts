@@ -137,3 +137,15 @@ it('pairs a second computer of the same account and keeps its previous key in a 
   expect(laptop.adoptEncryptionKeySeed(original.encryptionKeySeed)).toEqual({ changed: false });
   expect(inspect(h.log.mock.calls, { depth: null })).not.toContain(original.encryptionKeySeed);
 });
+
+it('shows the same short key fingerprint on paired computers without revealing the key', async () => {
+  fs.writeFileSync(credentialPath(), JSON.stringify(original));
+  const service = await import('../CredentialService');
+  const fingerprint = service.getSyncKeyFingerprint();
+  expect(fingerprint).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}$/);
+  expect(original.encryptionKeySeed).not.toContain(fingerprint.replace('-', ''));
+  service.adoptEncryptionKeySeed(Buffer.alloc(32, 3).toString('base64'));
+  expect(service.getSyncKeyFingerprint()).not.toBe(fingerprint);
+  service.adoptEncryptionKeySeed(original.encryptionKeySeed);
+  expect(service.getSyncKeyFingerprint()).toBe(fingerprint);
+});
