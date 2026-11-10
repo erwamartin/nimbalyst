@@ -108,3 +108,31 @@ it('creates a key only when the credential file is absent, and reloads it after 
   expect((await import('../CredentialService')).getCredentials()).toEqual(credentials);
   expect(h.encrypt).toHaveBeenCalledTimes(1);
 });
+
+it('pairs a second computer of the same account and keeps its previous key in a backup', async () => {
+  fs.writeFileSync(credentialPath(), JSON.stringify(original));
+  const studio = await import('../CredentialService');
+  const code = studio.createComputerPairingCode('member-1');
+  expect(JSON.parse(Buffer.from(code.replace('nimbalyst-computer-pair:1:', ''), 'base64url').toString('utf8'))).toEqual({ u: 'member-1', s: original.encryptionKeySeed });
+
+  fs.writeFileSync(credentialPath(), JSON.stringify({ encryptionKeySeed: Buffer.alloc(32, 9).toString('base64'), createdAt: 1 }));
+  vi.resetModules();
+  const laptop = await import('../CredentialService');
+  expect(() => laptop.readComputerPairingCode(code, 'member-2')).toThrow('different Nimbalyst account');
+  expect(() => laptop.readComputerPairingCode('hello', 'member-1')).toThrow('not a Nimbalyst computer pairing code');
+  expect(() => laptop.readComputerPairingCode(code.slice(0, -10), 'member-1')).toThrow('incomplete');
+  expect(() => laptop.adoptEncryptionKeySeed('short')).toThrow('Invalid sync key');
+
+  const adopted = laptop.adoptEncryptionKeySeed(laptop.readComputerPairingCode(`  ${code}\n`, 'member-1'));
+  expect(adopted.changed).toBe(true);
+  expect(adopted.backupPath).toContain('sync-credentials.enc.before-pairing-');
+  expect(fs.existsSync(`${credentialPath()}.tmp`)).toBe(false);
+  expect(laptop.getEncryptionKeySeed()).toBe(original.encryptionKeySeed);
+  vi.resetModules();
+  expect((await import('../CredentialService')).getEncryptionKeySeed()).toBe(original.encryptionKeySeed);
+  const backups = fs.readdirSync(h.userData).filter(name => name.startsWith('sync-credentials.enc.before-pairing-'));
+  expect(backups).toHaveLength(1);
+  expect(JSON.parse(fs.readFileSync(join(h.userData, backups[0]), 'utf8')).encryptionKeySeed).toBe(Buffer.alloc(32, 9).toString('base64'));
+  expect(laptop.adoptEncryptionKeySeed(original.encryptionKeySeed)).toEqual({ changed: false });
+  expect(inspect(h.log.mock.calls, { depth: null })).not.toContain(original.encryptionKeySeed);
+});

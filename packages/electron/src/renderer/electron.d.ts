@@ -906,6 +906,8 @@ interface ElectronAPI {
       encryptionKeySeed: string;
     }>;
     isSecure: () => Promise<boolean>;
+    computerPairingCode: () => Promise<string>;
+    useComputerPairingCode: (code: string) => Promise<{ changed: boolean; backupPath?: string }>;
   };
 
   // Network utilities

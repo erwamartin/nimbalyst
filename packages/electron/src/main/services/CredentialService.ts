@@ -76,17 +76,20 @@ function createCredentials(): SyncCredentials {
 function saveCredentials(credentials: SyncCredentials): void {
   const credentialsPath = getCredentialsPath();
   const jsonData = JSON.stringify(credentials);
+  // Write then rename, so a crash never leaves a truncated key file.
+  const tempPath = `${credentialsPath}.tmp`;
 
   if (isSafeStorageAvailable()) {
     // Encrypt using OS keychain
     const encrypted = safeStorage.encryptString(jsonData);
-    fs.writeFileSync(credentialsPath, encrypted);
+    fs.writeFileSync(tempPath, encrypted);
     logger.main.info('[CredentialService] Credentials saved with safeStorage encryption');
   } else {
     // Fallback: save as plain JSON (with warning)
     logger.main.warn('[CredentialService] safeStorage not available - saving credentials without encryption');
-    fs.writeFileSync(credentialsPath, jsonData, 'utf8');
+    fs.writeFileSync(tempPath, jsonData, 'utf8');
   }
+  fs.renameSync(tempPath, credentialsPath);
 }
 
 /**
@@ -180,6 +183,56 @@ export function resetCredentials(): SyncCredentials {
   });
 
   return credentials;
+}
+
+const COMPUTER_PAIRING_PREFIX = 'nimbalyst-computer-pair:1:';
+
+function isValidSeed(seed: unknown): seed is string {
+  return typeof seed === 'string' && /^[A-Za-z0-9+/]{43}=$/.test(seed) && Buffer.from(seed, 'base64').length === 32;
+}
+
+/**
+ * Pairing code that lets another desktop of the same account adopt this
+ * desktop's sync key. Desktops cannot scan the mobile QR code.
+ */
+export function createComputerPairingCode(personalUserId: string): string {
+  if (!personalUserId) throw new Error('Sign in to sync before pairing another computer.');
+  const body = JSON.stringify({ u: personalUserId, s: getCredentials().encryptionKeySeed });
+  return COMPUTER_PAIRING_PREFIX + Buffer.from(body, 'utf8').toString('base64url');
+}
+
+/** Returns the sync key carried by a pairing code, refusing codes from another account. */
+export function readComputerPairingCode(code: string, personalUserId: string): string {
+  const trimmed = typeof code === 'string' ? code.trim() : '';
+  if (!trimmed.startsWith(COMPUTER_PAIRING_PREFIX)) throw new Error('This is not a Nimbalyst computer pairing code.');
+  let parsed: { u?: unknown; s?: unknown };
+  try {
+    parsed = JSON.parse(Buffer.from(trimmed.slice(COMPUTER_PAIRING_PREFIX.length), 'base64url').toString('utf8'));
+  } catch {
+    throw new Error('This pairing code is incomplete. Copy it again.');
+  }
+  if (!isValidSeed(parsed?.s)) throw new Error('This pairing code is incomplete. Copy it again.');
+  if (!personalUserId || parsed.u !== personalUserId) throw new Error('This code comes from a different Nimbalyst account. Sign in with the same account on both computers.');
+  return parsed.s;
+}
+
+/**
+ * Replace this desktop's sync key with another desktop's. The previous key is
+ * kept in a backup file so the change can be undone.
+ */
+export function adoptEncryptionKeySeed(seed: string): { changed: boolean; backupPath?: string } {
+  if (!isValidSeed(seed)) throw new Error('Invalid sync key.');
+  const current = getCredentials();
+  if (current.encryptionKeySeed === seed) return { changed: false };
+  const credentialsPath = getCredentialsPath();
+  const backupPath = `${credentialsPath}.before-pairing-${Date.now()}`;
+  fs.copyFileSync(credentialsPath, backupPath);
+  if (fs.statSync(backupPath).size !== fs.statSync(credentialsPath).size) throw new Error('Could not back up the current sync key. Nothing was changed.');
+  const credentials = { encryptionKeySeed: seed, createdAt: Date.now() };
+  saveCredentials(credentials);
+  cachedCredentials = credentials;
+  logger.main.info('[CredentialService] Adopted sync key from another computer; previous key backed up');
+  return { changed: true, backupPath };
 }
 
 /**
