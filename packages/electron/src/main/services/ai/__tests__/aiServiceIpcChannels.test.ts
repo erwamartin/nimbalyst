@@ -208,12 +208,12 @@ describe('AIService IPC registrars', () => {
     });
   }
 
-  it('registers all 63 channels across the modules, with no duplicates', () => {
+  it('registers all 64 channels across the modules, with no duplicates', () => {
     for (const register of Object.values(REGISTRARS)) {
       register(stubContext);
     }
-    expect(registered).toHaveLength(63);
-    expect(new Set(registered).size).toBe(63);
+    expect(registered).toHaveLength(64);
+    expect(new Set(registered).size).toBe(64);
   });
 });
 
