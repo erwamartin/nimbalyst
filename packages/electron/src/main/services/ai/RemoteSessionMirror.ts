@@ -85,6 +85,7 @@ export class RemoteSessionMirror {
     });
     this.unlistenDevices = provider?.onDeviceStatusChange?.(() => {
       for (const [id, observation] of this.observations) this.schedule(id, observation);
+      for (const workspace of new Set([...this.entries.values()].map(entry => entry.projectId))) this.deps.listChanged(workspace, '');
     });
   }
 
@@ -142,6 +143,8 @@ export class RemoteSessionMirror {
       if (entry.projectId !== workspacePath || ids.has(entry.sessionId)) continue;
       if (await this.deps.hasLocalSession(entry.sessionId)) continue;
       if (this.provider !== provider) return local;
+      // fetchIndex drops phase and tags; the live index cache carries the host's latest status.
+      const live = { ...entry, ...provider?.getCachedIndexEntry?.(entry.sessionId) };
       remote.push({
         id: entry.sessionId, title: entry.title || 'Sandbox session', provider: entry.provider,
         model: entry.model, sessionType: entry.sessionType === 'workstream' ? 'workstream' : entry.sessionType === 'blitz' ? 'blitz' : 'session', mode: entry.mode ?? 'agent',
@@ -151,6 +154,10 @@ export class RemoteSessionMirror {
         createdBySessionId: entry.createdBySessionId ?? null,
         messageCount: entry.messageCount, isArchived: !!entry.isArchived, isPinned: !!entry.isPinned,
         remoteHostDeviceId: entry.hostDeviceId,
+        ...(live.phase ? { phase: live.phase } : {}), ...(live.tags ? { tags: live.tags } : {}),
+        // A host that went offline mid-turn never publishes isExecuting=false.
+        hasPendingInteractivePrompt: !!live.hasPendingPrompt, remoteExecuting: !!live.isExecuting && this.hostOnline(entry),
+        hasUnread: live.lastReadAt !== undefined && live.lastMessageAt > live.lastReadAt,
       });
     }
     return [...local, ...remote].sort((a, b) => b.updatedAt - a.updatedAt);

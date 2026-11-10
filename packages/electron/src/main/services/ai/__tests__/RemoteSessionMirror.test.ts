@@ -89,6 +89,22 @@ describe('remote desktop mirrors', () => {
     expect((f.entry as any).queuedPrompts.map((row: any) => row.prompt)).toEqual(['first', 'second']);
   });
 
+  it('lists the host status the session list shows: phase, tags, waiting, running and unread', async () => {
+    const f = fixture();
+    // fetchIndex omits phase and tags; only the live index cache carries them.
+    f.provider.getCachedIndexEntry.mockReturnValue({ ...f.entry, phase: 'validating', tags: ['sync'], hasPendingPrompt: true, isExecuting: true, lastReadAt: 150 } as any);
+    expect(await f.mirror.list('/repo', [])).toEqual([expect.objectContaining({
+      id: 'remote', phase: 'validating', tags: ['sync'], hasPendingInteractivePrompt: true, remoteExecuting: true, hasUnread: true,
+    })]);
+    f.provider.getConnectedDevices.mockReturnValue([]);
+    expect(await f.mirror.list('/repo', [])).toEqual([expect.objectContaining({ phase: 'validating', remoteExecuting: false })]);
+    f.provider.getCachedIndexEntry.mockReturnValue({ ...f.entry, lastReadAt: 250 } as any);
+    expect(await f.mirror.list('/repo', [])).toEqual([expect.objectContaining({ hasPendingInteractivePrompt: false, remoteExecuting: false, hasUnread: false })]);
+    // Never read on any device: no unread dot, as on a host that never opened it.
+    f.provider.getCachedIndexEntry.mockReturnValue(undefined as any);
+    expect(await f.mirror.list('/repo', [])).toEqual([expect.objectContaining({ hasUnread: false })]);
+  });
+
   it('merges remote metadata only in its workspace, with local collisions taking precedence', async () => {
     const f = fixture();
     expect(await f.mirror.list('/other', [])).toEqual([]);

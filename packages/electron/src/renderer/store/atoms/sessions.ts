@@ -2305,6 +2305,11 @@ export const refreshSessionListAtom = atom(
           // gets corrected on the next session-list refresh. Persisted by
           // main-process setSessionPendingPrompt on every prompt open/resolve.
           set(sessionHasPendingInteractivePromptAtom(s.id), !!s.hasPendingInteractivePrompt);
+          // Remote mirrors get no local stream events; the host's index is their only status source.
+          if (s.remoteHostDeviceId) {
+            set(sessionProcessingAtom(s.id), !!s.remoteExecuting);
+            set(sessionUnreadAtom(s.id), !!s.hasUnread);
+          }
         }
 
         set(sessionRegistryAtom, registry);

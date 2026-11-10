@@ -68,6 +68,7 @@ function seedRegistry(entries: Array<Partial<SessionMeta> & { id: string }>): vo
       messageCount: e.messageCount ?? 0,
       isArchived: e.isArchived ?? false,
       isPinned: e.isPinned ?? false,
+      ...(e.remoteHostDeviceId ? { remoteHostDeviceId: e.remoteHostDeviceId } : {}),
     } as SessionMeta);
   }
   store.set(sessionRegistryAtom, map);
@@ -1014,8 +1015,11 @@ describe('processing reconcile on terminal events', () => {
       // reports it running (getRunningSessionIds mock returns []). This stands in
       // for a meta-agent child whose terminal clear was missed, pinning the header.
       const stuck = uniqueSessionId('stuck');
-      seedRegistry([{ id: stuck }]);
+      // A remote mirror's running state comes from its host's index, never the local running set.
+      const remote = uniqueSessionId('remote');
+      seedRegistry([{ id: stuck }, { id: remote, remoteHostDeviceId: 'studio' }]);
       store.set(sessionProcessingAtom(stuck), true);
+      store.set(sessionProcessingAtom(remote), true);
 
       // A DIFFERENT session completing must trigger the debounced reconcile, which
       // re-derives processing atoms against the authoritative active set.
@@ -1026,6 +1030,7 @@ describe('processing reconcile on terminal events', () => {
       expect(store.get(sessionProcessingAtom(stuck))).toBe(true); // not yet (debounced)
       await vi.advanceTimersByTimeAsync(700);
       expect(store.get(sessionProcessingAtom(stuck))).toBe(false); // healed by reconcile
+      expect(store.get(sessionProcessingAtom(remote))).toBe(true);
     } finally {
       vi.useRealTimers();
     }

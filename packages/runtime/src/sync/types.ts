@@ -411,6 +411,10 @@ export interface SyncProvider {
     queuedPromptCount?: number;
     /** Decrypted queued prompts */
     queuedPrompts?: Array<{ id: string; prompt: string; timestamp: number }>;
+    hasPendingPrompt?: boolean;
+    phase?: string;
+    tags?: string[];
+    lastReadAt?: number;
   } | undefined;
 
   /** Clear isExecuting in all cached index entries (for startup cleanup) */

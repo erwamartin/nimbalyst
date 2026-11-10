@@ -1072,8 +1072,9 @@ export function initSessionStateListeners(): () => void {
       // sessions:list). Iterating the registry alone left such a child's stuck
       // processing atom unhealed, pinning the header until the user clicked the
       // child. Union the registry keys with every parent's loaded children.
-      const candidates = new Set<string>(store.get(sessionRegistryAtom).keys());
-      for (const parentId of store.get(sessionRegistryAtom).keys()) {
+      const registry = store.get(sessionRegistryAtom);
+      const candidates = new Set<string>([...registry.values()].filter(s => !s.remoteHostDeviceId).map(s => s.id)); // Remote mirrors: the host's index owns their state.
+      for (const parentId of candidates) {
         const children = store.get(sessionChildrenAtom(parentId));
         if (Array.isArray(children)) {
           for (const childId of children) candidates.add(childId);
