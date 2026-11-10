@@ -122,6 +122,9 @@ it('pairs a second computer of the same account and keeps its previous key in a 
   expect(() => laptop.readComputerPairingCode(code, asPersonalMemberId('member-2'))).toThrow('different Nimbalyst account');
   expect(() => laptop.readComputerPairingCode('hello', asPersonalMemberId('member-1'))).toThrow('not a Nimbalyst computer pairing code');
   expect(() => laptop.readComputerPairingCode(code.slice(0, -10), asPersonalMemberId('member-1'))).toThrow('incomplete');
+  const body = code.slice(code.indexOf('pair:1:'));
+  expect(laptop.readComputerPairingCode(body, asPersonalMemberId('member-1'))).toBe(original.encryptionKeySeed);
+  expect(laptop.readComputerPairingCode(`${code.slice(0, 40)}\n${code.slice(40)}`, asPersonalMemberId('member-1'))).toBe(original.encryptionKeySeed);
   expect(() => laptop.adoptEncryptionKeySeed('short')).toThrow('Invalid sync key');
 
   const adopted = laptop.adoptEncryptionKeySeed(laptop.readComputerPairingCode(`  ${code}\n`, asPersonalMemberId('member-1')));
