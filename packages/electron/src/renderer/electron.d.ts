@@ -907,6 +907,7 @@ interface ElectronAPI {
     }>;
     isSecure: () => Promise<boolean>;
     computerPairingCode: () => Promise<string>;
+    keyFingerprint: () => Promise<string>;
     useComputerPairingCode: (code: string) => Promise<{ changed: boolean; backupPath?: string }>;
   };
 
