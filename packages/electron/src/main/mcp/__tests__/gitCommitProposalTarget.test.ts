@@ -3,18 +3,20 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   target: vi.fn(),
+  revalidate: vi.fn(async (_s: string, _p: string) => {}),
   commit: vi.fn(async (..._args: any[]): Promise<any> => ({ success: false, error: 'test stopped at Git boundary' })),
   create: vi.fn(async (_row: any) => {}),
   send: vi.fn(),
   auto: true,
+  autoWorktrees: false,
   ipcOn: vi.fn(),
   outcome: vi.fn(async (_opts: any): Promise<any> => ({ kind: 'not-committed' })),
   cancel: vi.fn(async (_s: string, _p: string) => true),
   processNewMessages: vi.fn(async (_s: string, _p: string) => {}),
 }));
 vi.mock('electron', () => ({ BrowserWindow: { fromId: () => ({ isDestroyed: () => false, webContents: { send: mocks.send } }) }, ipcMain: { on: mocks.ipcOn, removeListener: vi.fn() } }));
-vi.mock('../../utils/privateSettingsStore', () => ({ default: class { get() { return mocks.auto; } } }));
-vi.mock('../../services/gitCommitProposalTarget', () => ({ resolveGitCommitProposalTarget: mocks.target }));
+vi.mock('../../utils/privateSettingsStore', () => ({ default: class { get(key: string) { return key === 'autoCommitWorktreesEnabled' ? mocks.autoWorktrees : mocks.auto; } } }));
+vi.mock('../../services/gitCommitProposalTarget', () => ({ resolveGitCommitProposalTarget: mocks.target, revalidateProposalWorktree: mocks.revalidate }));
 vi.mock('../../services/GitCommitService', () => ({
   executeGitCommitAcrossRepos: mocks.commit,
   createGitCommitProposalResponse: (r: any) => r.success ? { action: 'committed', commitHash: r.commitHash } : { action: 'error', error: r.error },
@@ -66,6 +68,8 @@ async function answerWidget(response: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auto = true;
+  mocks.autoWorktrees = false;
+  mocks.revalidate.mockResolvedValue(undefined);
   mocks.outcome.mockResolvedValue({ kind: 'not-committed' });
   mocks.cancel.mockResolvedValue(true);
   mocks.target.mockResolvedValue({ workspacePath: '/worktree', repoPath: '/worktree', files: ['/worktree/shared.txt'] });
@@ -193,7 +197,41 @@ it('still settles both paths and releases the in-flight mark when the outcome lo
   expect(isCommitProposalInFlight('session')).toBe(false);
 });
 
-// #1756: an explicit sibling worktree is never committed automatically.
+const siblingTarget = {
+  workspacePath: '/sibling', repoPath: '/sibling', files: ['/sibling/shared.txt'],
+  worktree: { path: '/sibling', branch: 'feature' },
+};
+
+it('auto-commits into a sibling worktree only when that opt-in is also on', async () => {
+  mocks.target.mockResolvedValue(siblingTarget);
+  mocks.autoWorktrees = true;
+  mocks.commit.mockResolvedValue({ success: true, commitHash: 'abc1234' });
+  const result = await handleGitCommitProposal({ workingDirectory: '/sibling', filesToStage: ['shared.txt'], commitMessage: 'fix: x' }, 'session', '/parent', {});
+  expect(mocks.revalidate).toHaveBeenCalledWith('session', '/sibling');
+  expect(mocks.revalidate.mock.invocationCallOrder[0]).toBeLessThan(mocks.commit.mock.invocationCallOrder[0]);
+  expect(mocks.commit).toHaveBeenCalledWith('/sibling', 'fix: x', ['/sibling/shared.txt'], expect.objectContaining({ repoPath: '/sibling' }));
+  expect(proposalRow()).toMatchObject({ autoApproved: true, targetWorktree: { path: '/sibling', branch: 'feature' } });
+  expect(mocks.ipcOn).not.toHaveBeenCalled();
+  expect(text(result)).toContain('abc1234');
+
+  vi.clearAllMocks();
+  mocks.revalidate.mockRejectedValue(new Error('/sibling is not a registered git worktree'));
+  const gone = await handleGitCommitProposal({ workingDirectory: '/sibling', filesToStage: ['shared.txt'], commitMessage: 'fix: x' }, 'session', '/parent', {});
+  expect(mocks.commit).not.toHaveBeenCalled();
+  expect(gone.isError).toBe(true);
+  expect(text(gone)).toContain('not a registered git worktree');
+
+  vi.clearAllMocks();
+  mocks.auto = false;
+  const pending = handleGitCommitProposal({ workingDirectory: '/sibling', filesToStage: ['shared.txt'], commitMessage: 'fix: x' }, 'session', '/parent', {});
+  await vi.waitFor(() => expect(mocks.ipcOn).toHaveBeenCalled());
+  expect(mocks.commit).not.toHaveBeenCalled();
+  expect(proposalRow()).toMatchObject({ autoApproved: false });
+  await answerWidget({ action: 'cancelled' });
+  await pending;
+});
+
+// #1756: without the opt-in, an explicit sibling worktree is never committed automatically.
 it('always asks for manual approval for a sibling worktree target, even with auto-commit on', async () => {
   mocks.target.mockResolvedValue({
     workspacePath: '/sibling', repoPath: '/sibling', files: ['/sibling/shared.txt'],
