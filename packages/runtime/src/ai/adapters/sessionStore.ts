@@ -15,6 +15,8 @@ export interface SessionMeta {
   externalLastActivityAt?: number;
   /** Read-only desktop mirror; execution remains on this remote device. */
   remoteHostDeviceId?: string;
+  /** Remote mirrors only: the host reports this session is running. */
+  remoteExecuting?: boolean;
   id: string;
   title: string;
   provider: string;

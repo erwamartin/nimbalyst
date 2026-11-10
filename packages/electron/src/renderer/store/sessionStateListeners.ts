@@ -1092,6 +1092,10 @@ export function initSessionStateListeners(): () => void {
       // processing atom unhealed, pinning the header until the user clicked the
       // child. Union the registry keys with every parent's loaded children.
       for (const sessionId of running) candidates.add(sessionId);
+      // Remote mirrors: the host's index owns their processing state.
+      for (const session of store.get(sessionRegistryAtom).values()) {
+        if (session.remoteHostDeviceId) candidates.delete(session.id);
+      }
       const instantiated = new Set(sessionProcessingStateAtom.getParams());
       let healed = 0;
       for (const sessionId of candidates) {
