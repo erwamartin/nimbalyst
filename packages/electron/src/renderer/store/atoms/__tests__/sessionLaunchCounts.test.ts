@@ -2,7 +2,7 @@
 import { createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sessionLaunchCountAtom } from '../sessionLaunchCounts';
-import { refreshSessionListAtom, sessionListWorkspaceAtom, sessionRegistryAtom } from '../sessions';
+import { refreshSessionListAtom, sessionListWorkspaceAtom, sessionProcessingAtom, sessionRegistryAtom, sessionUnreadAtom } from '../sessions';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -28,6 +28,24 @@ describe('session launch count hydration', () => {
     invoke.mockResolvedValueOnce({ success: true, sessions: [], launchedSessionCounts: {} });
     await store.set(refreshSessionListAtom);
     expect(store.get(sessionLaunchCountAtom('coordinator'))).toBe(0);
+  });
+
+  it('shows a remote host session running and unread, and clears both when the host reports otherwise', async () => {
+    const store = createStore();
+    const remote = { id: 'remote', createdAt: 1, updatedAt: 1, remoteHostDeviceId: 'studio', phase: 'validating' };
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ success: true, sessions: [{ ...remote, remoteExecuting: true, hasUnread: true }, { id: 'local', createdAt: 1, updatedAt: 1 }] })
+      .mockResolvedValueOnce({ success: true, sessions: [{ ...remote, remoteExecuting: false, hasUnread: false }] });
+    vi.stubGlobal('window', { electronAPI: { invoke } });
+    store.set(sessionListWorkspaceAtom, '/project');
+    store.set(sessionProcessingAtom('local'), true);
+    await store.set(refreshSessionListAtom);
+    expect([store.get(sessionProcessingAtom('remote')), store.get(sessionUnreadAtom('remote'))]).toEqual([true, true]);
+    expect(store.get(sessionRegistryAtom).get('remote')?.phase).toBe('validating');
+    // Local sessions keep their stream-driven state.
+    expect(store.get(sessionProcessingAtom('local'))).toBe(true);
+    await store.set(refreshSessionListAtom);
+    expect([store.get(sessionProcessingAtom('remote')), store.get(sessionUnreadAtom('remote'))]).toEqual([false, false]);
   });
 
   it('ignores an older response after a newer list load or workspace change', async () => {
