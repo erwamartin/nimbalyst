@@ -115,6 +115,7 @@ const EXPECTED_CHANNELS: Record<string, string[]> = {
     'ai:unwatchRemoteSession',
     'ai:queueRemotePrompt',
     'ai:cancelRemoteSession',
+    'ai:respondRemotePrompt',
     'ai:createSession',
     'ai:recordPendingSubmission',
     'ai:sendMessage',

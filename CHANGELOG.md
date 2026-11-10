@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 <!-- New features go here -->
 - A new Agent Features setting lets auto-approved commits also cover commits an agent proposes into another worktree of the same repository, instead of always asking.
+- A session running on another of your computers can now be answered from this one: questions, forms, tool permissions, plan approval, and commit proposals are sent to the computer running the session
 
 ### Changed
 <!-- Changes to existing functionality go here -->
