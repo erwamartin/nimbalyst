@@ -192,6 +192,12 @@ function isValidSeed(seed: unknown): seed is string {
   return typeof seed === 'string' && /^[A-Za-z0-9+/]{43}=$/.test(seed) && Buffer.from(seed, 'base64').length === 32;
 }
 
+/** Short, non-secret label of the sync key, so two computers can confirm they share it. */
+export function getSyncKeyFingerprint(): string {
+  const hex = crypto.createHash('sha256').update(getCredentials().encryptionKeySeed).digest('hex');
+  return `${hex.slice(0, 4)}-${hex.slice(4, 8)}`.toUpperCase();
+}
+
 /**
  * Pairing code that lets another desktop of the same account adopt this
  * desktop's sync key. Desktops cannot scan the mobile QR code.

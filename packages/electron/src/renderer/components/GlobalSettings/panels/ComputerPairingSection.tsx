@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const buttonClass = 'rounded border border-nim bg-nim-secondary px-2.5 py-1 text-[12px] text-nim cursor-pointer hover:bg-nim-hover disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -10,6 +10,11 @@ export function ComputerPairingSection({ className = '' }: { className?: string 
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
+  const refreshFingerprint = () => {
+    void window.electronAPI.credentials.keyFingerprint().then(setFingerprint, () => setFingerprint(null));
+  };
+  useEffect(refreshFingerprint, []);
 
   const showCode = async () => {
     setMessage(null);
@@ -38,6 +43,7 @@ export function ComputerPairingSection({ className = '' }: { className?: string 
       const { changed, backupPath } = await window.electronAPI.credentials.useComputerPairingCode(pasted);
       setPasted('');
       setConfirming(false);
+      refreshFingerprint();
       setMessage({ tone: 'success', text: changed ? `Paired. This computer now uses the other computer’s sync key and has reconnected. The previous key is saved at ${backupPath}.` : 'This computer already uses that sync key. Sync has reconnected.' });
     } catch (error) {
       setMessage({ tone: 'error', text: error instanceof Error ? error.message : String(error) });
@@ -52,6 +58,11 @@ export function ComputerPairingSection({ className = '' }: { className?: string 
       <p className="m-0 mb-3 text-[12px] text-nim-muted leading-relaxed">
         To see and control this computer&apos;s sessions from another computer, copy this computer&apos;s pairing code and paste it on the other one. Both must be signed in with the same account.
       </p>
+      {fingerprint && (
+        <p className="m-0 mb-3 text-[12px] text-nim">
+          Sync key on this computer: <span className="font-mono font-semibold select-text">{fingerprint}</span>. Paired computers show the same value.
+        </p>
+      )}
 
       <div className="flex flex-col gap-2 mb-4">
         {code ? (

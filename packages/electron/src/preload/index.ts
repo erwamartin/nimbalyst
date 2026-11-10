@@ -1747,6 +1747,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('credentials:generate-qr-payload', serverUrl),
     isSecure: () => ipcRenderer.invoke('credentials:is-secure'),
     computerPairingCode: () => ipcRenderer.invoke('credentials:computer-pairing-code'),
+    keyFingerprint: () => ipcRenderer.invoke('credentials:key-fingerprint'),
     useComputerPairingCode: (code: string) => ipcRenderer.invoke('credentials:use-computer-pairing-code', code),
   },
 
