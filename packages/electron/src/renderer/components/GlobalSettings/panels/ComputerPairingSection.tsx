@@ -12,7 +12,8 @@ export function ComputerPairingSection({ className = '' }: { className?: string 
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [fingerprint, setFingerprint] = useState<string | null>(null);
   const refreshFingerprint = () => {
-    void window.electronAPI.credentials.keyFingerprint().then(setFingerprint, () => setFingerprint(null));
+    const request = window.electronAPI.credentials?.keyFingerprint?.();
+    if (request) void request.then(setFingerprint, () => setFingerprint(null));
   };
   useEffect(refreshFingerprint, []);
 
