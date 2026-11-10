@@ -5,6 +5,7 @@ vi.mock('../../../utils/store', () => ({ store: { get: vi.fn(), set: vi.fn() } }
 vi.mock('../../../utils/workspaceDetection', () => ({ resolveProjectPath: vi.fn((path: string) => path) }));
 
 import { selectSessionsForIndexSync } from '../selectSessionsForIndexSync';
+import { claimLocalSessionHosts } from '../claimLocalSessionHosts';
 import { reconcileSessionIndex } from '../indexReconciliation';
 import { createTranscriptBackfill } from '../transcriptBackfill';
 
@@ -161,4 +162,31 @@ it('re-requests an enabled project\'s earlier transcript from zero until deliver
   syncSessionsToIndex.mockClear();
   await reconcileSessionIndex({ ...base, serverIndex: index(serverRow({})), backfill: createTranscriptBackfill(storage, path => path) });
   expect(syncSessionsToIndex).not.toHaveBeenCalled();
+});
+
+it('claims untagged local sessions for this desktop and republishes rows the server holds untagged', async () => {
+  const base = { workspaceId: '/p', provider: 'claude-code', messageCount: 1, createdAt: 1000, updatedAt: 9000 };
+  const rows = [
+    { ...base, id: 'old', title: 'old', metadata: { kept: true } },
+    { ...base, id: 'tagged', title: 'tagged', metadata: { hostDeviceId: 'studio' } },
+    { ...base, id: 'other-host', title: 'other-host', hostDeviceId: 'laptop' },
+  ];
+  let release!: () => void;
+  const persist = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
+  const claimed = claimLocalSessionHosts(rows, 'studio', persist);
+  claimLocalSessionHosts(rows, 'studio', persist);
+  expect(claimed[0]).toMatchObject({ hostDeviceId: 'studio', metadata: { kept: true, hostDeviceId: 'studio' } });
+  expect(claimed[1]).toBe(rows[1]);
+  expect(claimed[2]).toBe(rows[2]);
+  await Promise.resolve();
+  expect(persist).toHaveBeenCalledTimes(1);
+  expect(persist).toHaveBeenCalledWith('old', 'studio');
+  release();
+  expect(claimLocalSessionHosts(rows, undefined, persist)).toBe(rows);
+
+  const server = (id: string, hostDeviceId?: string) => ({ sessionId: id, projectId: '/p', provider: 'claude-code', title: id, updatedAt: 9000, lastMessageAt: 9000, createdAt: 1000, messageCount: 1, ...(hostDeviceId ? { hostDeviceId } : {}) });
+  const selected = selectSessionsForIndexSync(claimed, { complete: true, indexProtocolVersion: 2, projects: [],
+    sessions: [server('old'), server('tagged', 'studio'), server('other-host', 'laptop')] } as never, 10000);
+  expect(selected.sessionsNeedingIndexUpdate.map(row => row.id)).toEqual(['old']);
+  expect(selected.sessionsNeedingMessageSync).toEqual([]);
 });

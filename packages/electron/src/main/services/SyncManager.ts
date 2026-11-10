@@ -38,6 +38,14 @@ import { resolveWorkspaceAttachmentStagingDirectory } from './attachments/attach
 // Side effect: registers the mobile-sync image compressor and display_to_user image loader.
 import './sync/mobileSyncImages';
 import { aesGcmDecrypt } from '@nimbalyst/runtime/sync/aesGcm';
+import { claimLocalSessionHosts } from './sync/claimLocalSessionHosts';
+import { AISessionsRepository } from '@nimbalyst/runtime/storage/repositories/AISessionsRepository';
+
+function claimHosts<T extends { id: string; hostDeviceId?: string; metadata?: Record<string, any> }>(rows: T[]): T[] {
+  return claimLocalSessionHosts(rows, state.provider?.getLocalDeviceInfo?.()?.deviceId, (sessionId, hostDeviceId) =>
+    AISessionsRepository.updateMetadata(sessionId, { metadata: { hostDeviceId } })
+      .catch(error => logger.main.warn(`[SyncManager] Host attribution for ${sessionId} not saved; the next sync retries`, error)));
+}
 
 function loadSyncModule() {
   return syncModule;
@@ -628,7 +636,7 @@ export async function initializeSync(baseStore: SessionStore): Promise<SessionSt
           // applied in SQL rather than over every row in the database.
           loadLocalSessions: isProjectEnabled => timeStartupPhase(
             'SyncManager.getAllSessionsForSync',
-            () => getAllSessionsForSync(false, { isProjectEnabled }),
+            () => getAllSessionsForSync(false, { isProjectEnabled }).then(claimHosts),
           ),
           getMessagesForSync: getSessionMessagesForSyncBatch,
           isProjectEnabled: createEnabledProjectFilter(),
@@ -937,7 +945,7 @@ export async function triggerIncrementalSync(options: { force?: boolean; onlyMis
     const result = await reconcileSessionIndex({
       syncSessionsToIndex: provider.syncSessionsToIndex.bind(provider),
       serverIndex,
-      loadLocalSessions: isProjectEnabled => getAllSessionsForSync(false, { isProjectEnabled }),
+      loadLocalSessions: isProjectEnabled => getAllSessionsForSync(false, { isProjectEnabled }).then(claimHosts),
       getMessagesForSync: getSessionMessagesForSyncBatch,
       isProjectEnabled: createEnabledProjectFilter(),
       isMidTurn: isSessionMidTurn,
