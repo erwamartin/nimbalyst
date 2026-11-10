@@ -6,6 +6,7 @@ import { usePostHog } from 'posthog-js/react';
 import { useAtom, useAtomValue } from 'jotai';
 import { MaterialSymbol } from '@nimbalyst/runtime/ui/icons/MaterialSymbol';
 import { QRPairingModal } from './QRPairingModal';
+import { ComputerPairingSection } from './ComputerPairingSection';
 import {
   syncConfigAtom,
   setSyncConfigAtom,
@@ -661,6 +662,7 @@ export function SyncPanel({ section }: { section: PersonalSyncSection }) {
             {pairError}
           </p>
       )}
+      {stytchAuth.isAuthenticated && <ComputerPairingSection className={sectionClass('mobile')} />}
 
       {/* Prevent sleep mode selector */}
       {config.enabled && (

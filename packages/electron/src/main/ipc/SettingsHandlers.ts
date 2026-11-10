@@ -55,7 +55,7 @@ import { getDialogDefaultPath, rememberDialogSelection } from '../utils/dialogPa
 import { SoundNotificationService } from '../services/SoundNotificationService';
 import { autoUpdaterService } from '../services/autoUpdater';
 import type { OnboardingState } from '../utils/store';
-import { getCredentials, resetCredentials, generateQRPairingPayload, isUsingSecureStorage } from '../services/CredentialService';
+import { getCredentials, resetCredentials, generateQRPairingPayload, isUsingSecureStorage, createComputerPairingCode, readComputerPairingCode, adoptEncryptionKeySeed } from '../services/CredentialService';
 import {
     isSyncProviderReady,
     onSyncStatusChange,
@@ -1315,6 +1315,22 @@ export function registerSettingsHandlers() {
             createdAt: creds.createdAt,
             isSecure: isUsingSecureStorage(),
         };
+    });
+
+    // Pairing code another desktop pastes to adopt this desktop's sync key
+    safeHandle('credentials:computer-pairing-code', () => {
+        const personalUserId = StytchAuth.getPersonalUserId();
+        if (!personalUserId) throw new Error('Sign in to sync before pairing another computer.');
+        return createComputerPairingCode(personalUserId);
+    });
+
+    safeHandle('credentials:use-computer-pairing-code', async (_event, code: string) => {
+        const personalUserId = StytchAuth.getPersonalUserId();
+        if (!personalUserId) throw new Error('Sign in to sync before pairing another computer.');
+        const result = adoptEncryptionKeySeed(readComputerPairingCode(code, personalUserId));
+        // Reinitialize even when unchanged, so a retry after a failed reconnect still applies the key.
+        await repositoryManager.reinitializeSyncWithNewConfig();
+        return result;
     });
 
     // Generate QR pairing payload for mobile device
