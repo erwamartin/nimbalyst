@@ -271,6 +271,7 @@ describe('OpenAICodexProvider', () => {
       'gpt-5.5',
       'gpt-5.4',
       'gpt-5.4-mini',
+      'gpt-5.2',
     ];
     // The ACP transport is deprecated for OpenAI and runs a separate, much
     // older codex build with no GPT-6 catalog entries, so offering them there
@@ -418,7 +419,7 @@ describe('OpenAICodexProvider', () => {
         provider: 'openai-codex',
       }),
     ]));
-    expect(models).toHaveLength(11);
+    expect(models).toHaveLength(12);
   });
 
   it('preserves CLI auth when initialized without an API key', async () => {
